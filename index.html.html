@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TriNOVA Admin Suite</title>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            'primary':                '#001e40',
+            'primary-container':      '#003366',
+            'on-primary':             '#ffffff',
+            'on-primary-container':   '#799dd6',
+            'primary-fixed':          '#d5e3ff',
+            'on-primary-fixed':       '#001b3c',
+            'secondary':              '#566067',
+            'secondary-container':    '#dae4ed',
+            'on-secondary-container': '#5c666d',
+            'secondary-fixed':        '#dae4ed',
+            'on-secondary-fixed':     '#131d23',
+            'surface':                '#f8f9ff',
+            'surface-bright':         '#f8f9ff',
+            'surface-dim':            '#ccdbf4',
+            'surface-container-lowest': '#ffffff',
+            'surface-container-low':  '#eff4ff',
+            'surface-container':      '#e6eeff',
+            'surface-container-high': '#dde9ff',
+            'surface-container-highest': '#d5e3fd',
+            'on-surface':             '#0d1c2f',
+            'on-surface-variant':     '#43474f',
+            'outline':                '#737780',
+            'outline-variant':        '#c3c6d1',
+            'error':                  '#ba1a1a',
+            'error-container':        '#ffdad6',
+            'on-error-container':     '#93000a',
+            'surface-tint':           '#3a5f94',
+            'inverse-surface':        '#233144',
+            'inverse-on-surface':     '#ebf1ff',
+          },
+          fontFamily: {
+            sans:    ['Inter', 'sans-serif'],
+            display: ['Hanken Grotesk', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+
+    /* ── Page transition system ── */
+    .page {
+      position: fixed;
+      inset: 0;
+      overflow-y: auto;
+      transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                  transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: opacity, transform;
+      background: #f8f9ff;
+    }
+    .page.state-hidden-left  { opacity: 0; transform: translateX(-32px); pointer-events: none; }
+    .page.state-hidden-right { opacity: 0; transform: translateX(32px);  pointer-events: none; }
+    .page.state-visible      { opacity: 1; transform: translateX(0);      pointer-events: auto; }
+
+    /* login page is white on left half */
+    #pg-login { background: #ffffff; }
+
+    /* ── Shake on bad login ── */
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-10px); }
+      40%      { transform: translateX(10px); }
+      60%      { transform: translateX(-6px); }
+      80%      { transform: translateX(6px); }
+    }
+    .shake { animation: shake 0.45s ease; }
+
+    /* ── Three.js canvas ── */
+    #threejs-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* ── Pulse dot ── */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+
+    /* ── Scrollbar thin ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #c3c6d1; border-radius: 999px; }
+
+    /* ── Toggle switch ── */
+    .toggle { position:relative; width:40px; height:22px; border-radius:999px; cursor:pointer; transition:background .2s; flex-shrink:0; }
+    .toggle-knob { position:absolute; top:3px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:left .2s; }
+    .toggle.on  { background:#001e40; }
+    .toggle.on  .toggle-knob { left:21px; }
+    .toggle.off { background:#737780; }
+    .toggle.off .toggle-knob { left:3px; }
+
+    /* ── Card hover lift ── */
+    .tool-card { transition: box-shadow .25s, border-color .25s, transform .25s; }
+    .tool-card:hover { box-shadow: 0 8px 32px rgba(0,30,64,.12); border-color:#003366; transform:translateY(-2px); }
+
+    /* ── Button press ── */
+    button:active { transform: scale(0.97); opacity:.85; }
+
+    /* ── Fade-in rows ── */
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .fade-up { animation: fadeUp .4s ease both; }
+  </style>
+</head>
+
+<body class="font-sans text-on-surface overflow-hidden">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 1 — LOGIN
+═══════════════════════════════════════════════════════════════ -->
+<div id="pg-login" class="page state-visible flex min-h-screen">
+
+  <!-- Left branding panel -->
+  <div class="hidden lg:flex w-1/2 bg-primary-container flex-col relative overflow-hidden">
+    <canvas id="threejs-canvas"></canvas>
+
+    <!-- Glow blobs -->
+    <div class="absolute inset-0 pointer-events-none overflow-hidden">
+      <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-blue-400 opacity-10 blur-[100px]"></div>
+      <div class="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-sky-300 opacity-10 blur-[100px]"></div>
+    </div>
+
+    <!-- Logo -->
+    <div class="relative z-10 p-10">
+      <span class="font-display font-bold text-white text-2xl tracking-tight">TriNOVA</span>
+    </div>
+
+    <!-- Hero text -->
+    <div class="relative z-10 flex-1 flex items-center px-10">
+      <div>
+        <h2 class="font-display font-extrabold text-white uppercase leading-[1.05] tracking-tight"
+            style="font-size:clamp(40px,5vw,68px)">
+          Automate,<br>Validate,<br>Accelerate
+        </h2>
+        <p class="mt-6 text-white/50 text-sm max-w-xs leading-relaxed">
+          Enterprise-grade tooling for network resource management and compliance automation.
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer status -->
+    <div class="relative z-10 p-10 space-y-3">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
+        <span class="text-white/60 text-xs font-medium tracking-wide">All Services Operational</span>
+      </div>
+      <p class="text-white/30 text-xs max-w-xs leading-relaxed">
+        Unauthorized access is strictly prohibited. All activity is monitored in accordance with enterprise security policies.
+      </p>
+    </div>
+  </div>
+
+  <!-- Right login form -->
+  <div class="w-full lg:w-1/2 bg-white flex flex-col min-h-screen">
+    <!-- Mobile logo -->
+    <div class="lg:hidden px-8 pt-8">
+      <span class="font-display font-bold text-primary text-xl">TriNOVA</span>
+    </div>
+
+    <div class="flex-1 flex items-center justify-center px-8 py-12">
+      <div class="w-full max-w-sm">
+        <div class="mb-8">
+          <h1 class="font-display font-bold text-primary text-3xl mb-2">Welcome back</h1>
+          <p class="text-on-surface-variant text-sm">Enter your credentials to access the Admin Suite.</p>
+        </div>
+
+        <!-- Error banner -->
+        <div id="login-error"
+             class="hidden mb-5 px-4 py-3 bg-error-container text-on-error-container text-sm rounded-xl border border-red-200 flex items-center gap-2">
+          <span class="material-symbols-outlined text-base">error</span>
+          <span>Invalid Login ID or password. Please try again.</span>
+        </div>
+
+        <form id="login-form" onsubmit="doLogin(event)" class="space-y-5">
+          <!-- Login ID -->
+          <div>
+            <label class="block text-xs font-semibold text-on-surface-variant mb-1.5 tracking-wide" for="login-id">LOGIN ID</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-xl">person</span>
+              <input id="login-id" type="text" required placeholder="Employee ID"
+                     class="w-full pl-10 pr-4 py-3 border border-outline-variant rounded-xl text-sm bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition" />
+            </div>
+          </div>
+
+          <!-- Password -->
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="text-xs font-semibold text-on-surface-variant tracking-wide" for="pwd">PASSWORD</label>
+              <a href="#" class="text-xs text-primary hover:underline">Forgot password?</a>
+            </div>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-xl">key</span>
+              <input id="pwd" type="password" required placeholder="••••••••"
+                     class="w-full pl-10 pr-12 py-3 border border-outline-variant rounded-xl text-sm bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition" />
+              <button type="button" onclick="togglePwd()" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant">
+                <span class="material-symbols-outlined text-xl" id="pwd-eye">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Remember -->
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" class="w-4 h-4 rounded text-primary border-outline-variant focus:ring-primary" />
+            <span class="text-sm text-on-surface-variant">Remember this device</span>
+          </label>
+
+          <!-- Submit -->
+          <button type="submit"
+                  class="w-full bg-primary-container hover:bg-primary text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm tracking-wide">
+            <span>Sign in</span>
+            <span class="material-symbols-outlined text-lg">login</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <footer class="px-8 pb-6 flex justify-end gap-5 opacity-50">
+      <a href="#" class="text-xs text-on-surface-variant hover:text-primary">Privacy</a>
+      <a href="#" class="text-xs text-on-surface-variant hover:text-primary">Terms</a>
+    </footer>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 2 — DASHBOARD / TOOL PORTAL
+═══════════════════════════════════════════════════════════════ -->
+<div id="pg-dashboard" class="page state-hidden-right">
+
+  <!-- Top nav -->
+  <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-outline-variant">
+    <div class="max-w-7xl mx-auto px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-8">
+        <span class="font-display font-bold text-primary text-lg">ToolPortal</span>
+        <nav class="hidden md:flex items-center gap-6">
+          <a href="#" class="text-xs font-semibold text-primary border-b-2 border-primary pb-0.5 tracking-wide">DASHBOARD</a>
+          <a href="#" onclick="navigate('admin');return false;"
+             class="text-xs font-semibold text-on-surface-variant hover:text-primary tracking-wide transition-colors">ADMIN</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="relative hidden lg:block">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">search</span>
+          <input type="text" placeholder="Search tools…"
+                 class="pl-9 pr-4 py-2 bg-surface-container-low rounded-full text-sm border-none focus:outline-none focus:ring-2 focus:ring-primary/30 w-52 transition" />
+        </div>
+        <button class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <button class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition">
+          <span class="material-symbols-outlined">help</span>
+        </button>
+        <!-- Avatar -->
+        <div onclick="navigate('admin')"
+             class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-white text-xs font-bold cursor-pointer hover:bg-primary transition"
+             title="Open Admin">SJ</div>
+        <button onclick="doLogout()" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition" title="Logout">
+          <span class="material-symbols-outlined">logout</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-8 py-10">
+    <!-- Welcome -->
+    <section class="mb-10 fade-up">
+      <h1 class="font-display font-bold text-primary text-4xl mb-1">Welcome back, Sathvik</h1>
+      <p class="text-on-surface-variant text-base">Select a specialized module to begin.</p>
+    </section>
+
+    <!-- Tool cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+      <!-- NR-BL -->
+      <div class="tool-card bg-white border border-outline-variant rounded-2xl overflow-hidden flex flex-col h-[460px] fade-up" style="animation-delay:.05s">
+        <div class="relative flex-shrink-0 h-52 bg-primary-container flex items-center justify-center overflow-hidden">
+          <span class="material-symbols-outlined text-white/20" style="font-size:140px">hub</span>
+          <div class="absolute bottom-5 left-5">
+            <span class="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm tracking-wide">Network Resource</span>
+          </div>
+        </div>
+        <div class="p-6 flex flex-col flex-1">
+          <h2 class="font-display font-bold text-primary text-2xl mb-2">NR-BL</h2>
+          <p class="text-on-surface-variant text-sm leading-relaxed flex-1">
+            Manage and optimize Network Resource Baseline configurations. Access real-time bandwidth metrics, resource allocation logs, and predictive maintenance schedules for enterprise-wide nodes.
+          </p>
+          <button class="mt-5 w-full bg-primary-container hover:bg-primary text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm">
+            Launch Tool <span class="material-symbols-outlined text-lg">rocket_launch</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Audits -->
+      <div class="tool-card bg-white border border-outline-variant rounded-2xl overflow-hidden flex flex-col h-[460px] fade-up" style="animation-delay:.1s">
+        <div class="relative flex-shrink-0 h-52 bg-primary-container flex items-center justify-center overflow-hidden">
+          <span class="material-symbols-outlined text-white/20" style="font-size:140px">fact_check</span>
+          <div class="absolute bottom-5 left-5">
+            <span class="bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm tracking-wide">Compliance</span>
+          </div>
+        </div>
+        <div class="p-6 flex flex-col flex-1">
+          <h2 class="font-display font-bold text-primary text-2xl mb-2">Audits</h2>
+          <p class="text-on-surface-variant text-sm leading-relaxed flex-1">
+            Comprehensive compliance tracking and internal auditing engine. Review historical discrepancy reports, verify security protocols, and generate certified enterprise audit documentation.
+          </p>
+          <button class="mt-5 w-full bg-primary-container hover:bg-primary text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm">
+            Launch Tool <span class="material-symbols-outlined text-lg">fact_check</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity + Status -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 fade-up" style="animation-delay:.15s">
+      <!-- Recent activity -->
+      <div class="lg:col-span-2 bg-white border border-outline-variant rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-5">
+          <h3 class="font-display font-bold text-primary text-lg">Recent Tool Updates</h3>
+          <button class="text-xs text-primary font-semibold hover:underline">View all</button>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-center p-4 bg-surface-container-low rounded-xl border border-outline-variant/40 hover:bg-surface-container transition-colors">
+            <div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary-container mr-4 flex-shrink-0">
+              <span class="material-symbols-outlined">description</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-on-surface truncate">Audit_Report_Q3_v2.pdf</p>
+              <p class="text-xs text-on-surface-variant">Generated 2 hours ago · System Admin</p>
+            </div>
+            <span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer ml-2">more_vert</span>
+          </div>
+          <div class="flex items-center p-4 bg-surface-container-low rounded-xl border border-outline-variant/40 hover:bg-surface-container transition-colors">
+            <div class="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed mr-4 flex-shrink-0">
+              <span class="material-symbols-outlined">settings_ethernet</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-on-surface truncate">Node Baseline Update #442</p>
+              <p class="text-xs text-on-surface-variant">Applied to Regional Cluster A · 5 hours ago</p>
+            </div>
+            <span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer ml-2">more_vert</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- System status -->
+      <div class="bg-primary-container rounded-2xl p-6 flex flex-col justify-between text-white">
+        <div>
+          <h3 class="font-display font-bold text-lg mb-3">System Status</h3>
+          <div class="flex items-center gap-2 mb-5">
+            <span class="w-2 h-2 rounded-full bg-green-400 pulse"></span>
+            <span class="text-white/80 text-xs font-medium">All systems operational</span>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between border-b border-white/10 pb-2">
+              <span class="text-white/70">NR-BL Service</span><span class="font-bold">99.9%</span>
+            </div>
+            <div class="flex justify-between border-b border-white/10 pb-2">
+              <span class="text-white/70">Audit Engine</span><span class="font-bold">Stable</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-white/70">API Gateway</span><span class="font-bold">12ms</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-6 pt-4 border-t border-white/10">
+          <p class="text-white/40 text-xs uppercase tracking-widest mb-1">Next Maintenance</p>
+          <p class="font-display font-bold text-lg">Sunday, 02:00 AM</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-outline-variant mt-12 py-6">
+    <div class="max-w-7xl mx-auto px-8 flex justify-between items-center">
+      <span class="font-display font-bold text-on-surface text-sm">ToolPortal</span>
+      <span class="text-xs text-on-surface-variant opacity-50">© 2026 TriNOVA Enterprise</span>
+    </div>
+  </footer>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE 3 — ADMIN MANAGEMENT
+═══════════════════════════════════════════════════════════════ -->
+<div id="pg-admin" class="page state-hidden-right flex">
+
+  <!-- Sidebar -->
+  <aside class="fixed left-0 top-0 z-40 h-screen w-60 bg-surface-container-low border-r border-outline-variant flex flex-col py-6 px-4">
+    <div class="flex items-center gap-3 mb-8 px-2">
+      <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+        <span class="material-symbols-outlined text-white text-lg">admin_panel_settings</span>
+      </div>
+      <div>
+        <p class="font-display font-bold text-primary text-sm leading-tight">Portal Admin</p>
+        <p class="text-on-surface-variant text-xs">Enterprise Suite</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 space-y-1">
+      <a onclick="navigate('dashboard');return false;" href="#"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors text-xs font-semibold tracking-wide">
+        <span class="material-symbols-outlined text-lg">dashboard</span> Dashboard
+      </a>
+      <a href="#"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors text-xs font-semibold tracking-wide">
+        <span class="material-symbols-outlined text-lg">fact_check</span> Audits
+      </a>
+      <a href="#"
+         class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-primary-container text-white text-xs font-semibold tracking-wide">
+        <span class="material-symbols-outlined text-lg">admin_panel_settings</span> Admin
+      </a>
+    </nav>
+
+    <!-- User profile -->
+    <div class="border-t border-outline-variant pt-4 space-y-1">
+      <div class="flex items-center gap-3 px-3 py-2">
+        <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-white text-xs font-bold flex-shrink-0">SJ</div>
+        <div class="min-w-0">
+          <p class="text-on-surface text-xs font-semibold truncate">Sathvik Jain</p>
+          <p class="text-on-surface-variant text-[10px]">Super Admin</p>
+        </div>
+      </div>
+      <button onclick="doLogout()"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-error hover:bg-error-container/30 transition-colors text-xs font-semibold tracking-wide w-full">
+        <span class="material-symbols-outlined text-lg">logout</span> Logout
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="ml-60 flex-1 flex flex-col min-h-screen">
+
+    <!-- Admin top bar -->
+    <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-outline-variant h-16 flex items-center px-8">
+      <div class="flex-1 flex items-center gap-8">
+        <span class="font-display font-bold text-primary text-lg">ToolPortal</span>
+        <nav class="hidden md:flex items-center gap-6">
+          <a onclick="navigate('dashboard');return false;" href="#"
+             class="text-xs font-semibold text-on-surface-variant hover:text-primary tracking-wide transition-colors">DASHBOARD</a>
+          <a href="#" class="text-xs font-semibold text-primary border-b-2 border-primary pb-0.5 tracking-wide">MANAGEMENT</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="relative hidden lg:block">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">search</span>
+          <input type="text" placeholder="Search members…"
+                 class="pl-9 pr-4 py-2 bg-surface-container-low rounded-full text-sm border-none focus:outline-none focus:ring-2 focus:ring-primary/30 w-52 transition" />
+        </div>
+        <button class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <button class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container text-on-surface-variant transition">
+          <span class="material-symbols-outlined">help</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
+      <!-- Page header -->
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 fade-up">
+        <div>
+          <h2 class="font-display font-bold text-primary text-3xl">Admin Management</h2>
+          <p class="text-on-surface-variant text-sm mt-1">Manage team access control, permissions, and tool metrics</p>
+        </div>
+        <div class="flex gap-3">
+          <button class="flex items-center gap-1.5 px-4 py-2.5 border border-primary text-primary text-xs font-semibold rounded-xl hover:bg-surface-container-low transition-all">
+            <span class="material-symbols-outlined text-base">security</span> Manage Permissions
+          </button>
+          <button class="flex items-center gap-1.5 px-4 py-2.5 bg-primary text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all shadow-sm">
+            <span class="material-symbols-outlined text-base">person_add</span> Add New User
+          </button>
+        </div>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 fade-up" style="animation-delay:.05s">
+        <div class="bg-white border border-outline-variant p-6 rounded-2xl">
+          <p class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest">Total Members</p>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span class="font-display font-bold text-primary text-4xl">1,285</span>
+            <span class="text-green-600 text-xs font-semibold flex items-center gap-0.5">
+              +12% <span class="material-symbols-outlined text-sm">trending_up</span>
+            </span>
+          </div>
+        </div>
+        <div class="bg-white border border-outline-variant p-6 rounded-2xl">
+          <p class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest">Active Sessions</p>
+          <div class="flex items-baseline gap-2 mt-2">
+            <span class="font-display font-bold text-primary text-4xl">452</span>
+            <span class="text-on-surface-variant text-xs">Last 24h</span>
+          </div>
+        </div>
+        <div class="bg-white border border-outline-variant p-6 rounded-2xl">
+          <p class="text-on-surface-variant text-xs font-semibold uppercase tracking-widest">System Health</p>
+          <div class="flex items-center gap-2 mt-2">
+            <span class="w-3 h-3 rounded-full bg-green-500 pulse flex-shrink-0"></span>
+            <span class="font-display font-bold text-primary text-2xl">Optimal</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team table -->
+      <div class="bg-white border border-outline-variant rounded-2xl overflow-hidden fade-up" style="animation-delay:.1s">
+        <div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low/40">
+          <h3 class="font-display font-bold text-primary text-lg">Team Members</h3>
+          <div class="flex gap-2">
+            <button class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface-container-high text-on-surface-variant transition">
+              <span class="material-symbols-outlined text-lg">filter_list</span>
+            </button>
+            <button class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-surface-container-high text-on-surface-variant transition">
+              <span class="material-symbols-outlined text-lg">download</span>
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="bg-surface-container-low/20 border-b border-outline-variant">
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Login ID</th>
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Access</th>
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Active Mins</th>
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Script Time</th>
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">Last Tool</th>
+                <th class="px-6 py-3 text-on-surface-variant text-xs font-semibold uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/50">
+              <!-- Sathvik — Super Admin (highlighted) -->
+              <tr class="bg-primary-fixed/20 hover:bg-primary-fixed/30 transition-colors">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-white text-xs font-bold flex-shrink-0">SJ</div>
+                    <div>
+                      <p class="text-sm font-semibold text-on-surface">Sathvik Jain</p>
+                      <p class="text-[11px] text-on-surface-variant">sathvik.jain@portal.io</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant font-mono">Sathvik.Jain</td>
+                <td class="px-6 py-4"><span class="px-2.5 py-1 bg-primary text-white text-xs font-semibold rounded-lg">Super Admin</span></td>
+                <td class="px-6 py-4"><div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span><span class="text-xs text-on-surface-variant">Active</span></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">—</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">—</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">Admin Portal</td>
+                <td class="px-6 py-4 text-right"><button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined">more_vert</span></button></td>
+              </tr>
+              <!-- Eleanor -->
+              <tr class="hover:bg-surface-container-low/30 transition-colors">
+                <td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-primary text-xs font-bold flex-shrink-0">EM</div><div><p class="text-sm font-semibold text-on-surface">Eleanor Markova</p><p class="text-[11px] text-on-surface-variant">eleanor.m@portal.io</p></div></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant font-mono">USR-92840</td>
+                <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary-container text-on-secondary-container text-xs font-semibold rounded-lg">Administrator</span></td>
+                <td class="px-6 py-4"><div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span><span class="text-xs text-on-surface-variant">Active</span></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">120 mins</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">1.2 mins</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">NR Tool</td>
+                <td class="px-6 py-4 text-right"><button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined">more_vert</span></button></td>
+              </tr>
+              <!-- Julian -->
+              <tr class="bg-surface-container-low/10 hover:bg-surface-container-low/30 transition-colors">
+                <td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-secondary text-xs font-bold flex-shrink-0">JS</div><div><p class="text-sm font-semibold text-on-surface">Julian Schmidt</p><p class="text-[11px] text-on-surface-variant">j.schmidt@portal.io</p></div></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant font-mono">USR-10293</td>
+                <td class="px-6 py-4"><span class="px-2.5 py-1 bg-surface-container-highest text-on-surface-variant text-xs font-semibold rounded-lg">Editor</span></td>
+                <td class="px-6 py-4"><div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span><span class="text-xs text-on-surface-variant">Active</span></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">45 mins</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">45 secs</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">Audit Tool</td>
+                <td class="px-6 py-4 text-right"><button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined">more_vert</span></button></td>
+              </tr>
+              <!-- Amara -->
+              <tr class="hover:bg-surface-container-low/30 transition-colors">
+                <td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-primary-container text-xs font-bold flex-shrink-0">AK</div><div><p class="text-sm font-semibold text-on-surface">Amara Kalu</p><p class="text-[11px] text-on-surface-variant">amara.k@portal.io</p></div></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant font-mono">USR-44210</td>
+                <td class="px-6 py-4"><span class="px-2.5 py-1 bg-surface-container-highest text-on-surface-variant text-xs font-semibold rounded-lg">Viewer</span></td>
+                <td class="px-6 py-4"><div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-outline"></span><span class="text-xs text-on-surface-variant">Offline</span></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">80 mins</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">2.5 mins</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">Network Tool</td>
+                <td class="px-6 py-4 text-right"><button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined">more_vert</span></button></td>
+              </tr>
+              <!-- David -->
+              <tr class="bg-surface-container-low/10 hover:bg-surface-container-low/30 transition-colors">
+                <td class="px-6 py-4"><div class="flex items-center gap-3"><div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-error text-xs font-bold flex-shrink-0">DL</div><div><p class="text-sm font-semibold text-on-surface">David Lee</p><p class="text-[11px] text-on-surface-variant">d.lee@portal.io</p></div></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant font-mono">USR-00231</td>
+                <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary-container text-on-secondary-container text-xs font-semibold rounded-lg">Administrator</span></td>
+                <td class="px-6 py-4"><div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-error"></span><span class="text-xs text-error font-semibold">Suspended</span></div></td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">15 mins</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">1.8 mins</td>
+                <td class="px-6 py-4 text-sm text-on-surface-variant">Security Tool</td>
+                <td class="px-6 py-4 text-right"><button class="text-primary hover:text-primary-container transition-colors"><span class="material-symbols-outlined">more_vert</span></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Pagination -->
+        <div class="px-6 py-4 border-t border-outline-variant flex justify-between items-center">
+          <p class="text-xs text-on-surface-variant">Showing 5 of 1,285 members</p>
+          <div class="flex gap-1">
+            <button disabled class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded-lg opacity-30"><span class="material-symbols-outlined text-base">chevron_left</span></button>
+            <button class="w-8 h-8 bg-primary text-white text-xs font-semibold rounded-lg">1</button>
+            <button class="w-8 h-8 border border-outline-variant text-xs font-semibold rounded-lg hover:bg-surface-container-low">2</button>
+            <button class="w-8 h-8 border border-outline-variant text-xs font-semibold rounded-lg hover:bg-surface-container-low">3</button>
+            <button class="w-8 h-8 flex items-center justify-center border border-outline-variant rounded-lg hover:bg-surface-container-low"><span class="material-symbols-outlined text-base">chevron_right</span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Permissions + Security -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 fade-up" style="animation-delay:.15s">
+        <div class="bg-white border border-outline-variant p-6 rounded-2xl">
+          <div class="flex items-center gap-4 mb-5">
+            <div class="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+              <span class="material-symbols-outlined">rule</span>
+            </div>
+            <div>
+              <h4 class="font-display font-bold text-primary text-base">Global Access Policy</h4>
+              <p class="text-on-surface-variant text-xs">Default permissions for new users</p>
+            </div>
+          </div>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center p-3.5 bg-surface-container-low rounded-xl">
+              <span class="text-sm text-on-surface">Two-Factor Authentication Requirement</span>
+              <div class="toggle on" onclick="toggleSwitch(this)"><div class="toggle-knob"></div></div>
+            </div>
+            <div class="flex justify-between items-center p-3.5 bg-surface-container-low rounded-xl">
+              <span class="text-sm text-on-surface">Auto-Session Termination (15 mins)</span>
+              <div class="toggle off" onclick="toggleSwitch(this)"><div class="toggle-knob"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-primary-container p-6 rounded-2xl flex flex-col justify-between text-white">
+          <div>
+            <h4 class="font-display font-bold text-lg mb-2">Security Audit Pending</h4>
+            <p class="text-white/70 text-sm leading-relaxed">The quarterly security verification for the Admin Suite is due in 3 days. Ensure all logs are synchronized before the deadline.</p>
+          </div>
+          <button class="mt-6 w-full py-3 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold rounded-xl border border-white/20 transition-all">
+            Review Security Logs
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="border-t border-outline-variant py-6 mt-4">
+      <div class="px-8 max-w-7xl mx-auto flex justify-between items-center">
+        <span class="font-display font-bold text-on-surface text-sm">ToolPortal</span>
+        <span class="text-xs text-on-surface-variant opacity-50">© 2026 TriNOVA Enterprise</span>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script>
+// ── Credentials ───────────────────────────────────────────────────────────────
+const CREDS = { user: 'Sathvik.Jain', pass: 'Sathvik03' };
+
+// ── Page transition engine ────────────────────────────────────────────────────
+const pages = {
+  login:     document.getElementById('pg-login'),
+  dashboard: document.getElementById('pg-dashboard'),
+  admin:     document.getElementById('pg-admin'),
+};
+let current = 'login';
+const order  = ['login', 'dashboard', 'admin'];
+
+function navigate(target) {
+  if (target === current) return;
+  const from = pages[current];
+  const to   = pages[target];
+  const dir  = order.indexOf(target) > order.indexOf(current) ? 1 : -1;
+
+  // Slide out current
+  from.classList.remove('state-visible');
+  from.classList.add(dir > 0 ? 'state-hidden-left' : 'state-hidden-right');
+
+  // Prepare target off-screen on the opposite side
+  to.classList.remove('state-hidden-left', 'state-hidden-right', 'state-visible');
+  to.classList.add(dir > 0 ? 'state-hidden-right' : 'state-hidden-left');
+  to.scrollTop = 0;
+
+  // Force reflow then slide in
+  void to.offsetWidth;
+  to.classList.remove('state-hidden-left', 'state-hidden-right');
+  to.classList.add('state-visible');
+
+  current = target;
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+function doLogin(e) {
+  e.preventDefault();
+  const id  = document.getElementById('login-id').value.trim();
+  const pwd = document.getElementById('pwd').value;
+  const err = document.getElementById('login-error');
+  const frm = document.getElementById('login-form');
+
+  if (id === CREDS.user && pwd === CREDS.pass) {
+    err.classList.add('hidden');
+    navigate('dashboard');
+  } else {
+    err.classList.remove('hidden');
+    frm.classList.add('shake');
+    frm.addEventListener('animationend', () => frm.classList.remove('shake'), { once: true });
+  }
+}
+
+function doLogout() {
+  document.getElementById('login-id').value = '';
+  document.getElementById('pwd').value = '';
+  document.getElementById('login-error').classList.add('hidden');
+  navigate('login');
+}
+
+function togglePwd() {
+  const input = document.getElementById('pwd');
+  const icon  = document.getElementById('pwd-eye');
+  input.type  = input.type === 'password' ? 'text' : 'password';
+  icon.textContent = input.type === 'password' ? 'visibility' : 'visibility_off';
+}
+
+// ── Toggle switches ───────────────────────────────────────────────────────────
+function toggleSwitch(el) {
+  const knob = el.querySelector('.toggle-knob');
+  if (el.classList.contains('on')) {
+    el.classList.replace('on', 'off');
+    knob.style.left = '3px';
+  } else {
+    el.classList.replace('off', 'on');
+    knob.style.left = '21px';
+  }
+}
+
+// ── Three.js particle network (login panel) ───────────────────────────────────
+(function initThree() {
+  if (typeof THREE === 'undefined') return;
+  const canvas    = document.getElementById('threejs-canvas');
+  const container = canvas.parentElement;
+  const w = container.clientWidth  || 700;
+  const h = container.clientHeight || 800;
+
+  const scene    = new THREE.Scene();
+  const camera   = new THREE.PerspectiveCamera(75, w / h, 0.1, 1000);
+  camera.position.z = 50;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const N   = 90;
+  const pos = new Float32Array(N * 3);
+  const vel = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    pos[i*3]   = (Math.random() - 0.5) * 100;
+    pos[i*3+1] = (Math.random() - 0.5) * 100;
+    pos[i*3+2] = (Math.random() - 0.5) * 80;
+    vel[i*3]   = (Math.random() - 0.5) * 0.08;
+    vel[i*3+1] = (Math.random() - 0.5) * 0.08;
+    vel[i*3+2] = (Math.random() - 0.5) * 0.08;
+  }
+  const geo  = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const dots = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x60a5fa, size: 0.7, transparent: true, opacity: 0.75 }));
+  scene.add(dots);
+
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.18 });
+  let lines;
+
+  function rebuildLines() {
+    if (lines) scene.remove(lines);
+    const lp  = [];
+    const arr = geo.attributes.position.array;
+    for (let i = 0; i < N; i++) {
+      for (let j = i+1; j < N; j++) {
+        const dx = arr[i*3]-arr[j*3], dy = arr[i*3+1]-arr[j*3+1], dz = arr[i*3+2]-arr[j*3+2];
+        if (dx*dx + dy*dy + dz*dz < 400) {
+          lp.push(arr[i*3],arr[i*3+1],arr[i*3+2], arr[j*3],arr[j*3+1],arr[j*3+2]);
+        }
+      }
+    }
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+    lines = new THREE.LineSegments(lg, lineMat);
+    scene.add(lines);
+  }
+
+  let mx = 0, my = 0;
+  window.addEventListener('mousemove', ev => {
+    mx = (ev.clientX / window.innerWidth  - 0.5) * 18;
+    my = (ev.clientY / window.innerHeight - 0.5) * 18;
+  });
+
+  (function tick() {
+    requestAnimationFrame(tick);
+    const arr = geo.attributes.position.array;
+    for (let i = 0; i < N; i++) {
+      arr[i*3]+=vel[i*3]; arr[i*3+1]+=vel[i*3+1]; arr[i*3+2]+=vel[i*3+2];
+      if (Math.abs(arr[i*3])   > 50) vel[i*3]   *= -1;
+      if (Math.abs(arr[i*3+1]) > 50) vel[i*3+1] *= -1;
+      if (Math.abs(arr[i*3+2]) > 40) vel[i*3+2] *= -1;
+    }
+    geo.attributes.position.needsUpdate = true;
+    rebuildLines();
+    dots.rotation.y  += 0.0008;
+    if (lines) lines.rotation.y += 0.0008;
+    camera.position.x += (mx - camera.position.x) * 0.04;
+    camera.position.y += (-my - camera.position.y) * 0.04;
+    camera.lookAt(scene.position);
+    renderer.render(scene, camera);
+  })();
+
+  window.addEventListener('resize', () => {
+    const nw = container.clientWidth, nh = container.clientHeight;
+    camera.aspect = nw / nh;
+    camera.updateProjectionMatrix();
+    renderer.setSize(nw, nh);
+  });
+})();
+</script>
+</body>
+</html>
